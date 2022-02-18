@@ -178,6 +178,11 @@
 #define IMGUI_IMPL_OPENGL_MAY_HAVE_EXTENSIONS
 #endif
 
+// Use GL_TEXTURE_2D_ARRAY or not
+// 0: GL_TEXTURE_2D
+// 1: GL_TEXTURE_2D_ARRAY
+#define IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY 1
+
 // OpenGL Data
 struct ImGui_ImplOpenGL3_Data
 {
@@ -492,7 +497,11 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
                 glScissor((int)clip_min.x, (int)((float)fb_height - clip_max.y), (int)(clip_max.x - clip_min.x), (int)(clip_max.y - clip_min.y));
 
                 // Bind texture, Draw
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+                glBindTexture(GL_TEXTURE_2D_ARRAY, (GLuint)(intptr_t)pcmd->GetTexID());
+#else
                 glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->GetTexID());
+#endif
 #ifdef IMGUI_IMPL_OPENGL_MAY_HAVE_VTX_OFFSET
                 if (bd->GlVersion >= 320)
                     glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset);
@@ -510,7 +519,11 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
 
     // Restore modified GL state
     glUseProgram(last_program);
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+    glBindTexture(GL_TEXTURE_2D_ARRAY, last_texture);
+#else
     glBindTexture(GL_TEXTURE_2D, last_texture);
+#endif
 #ifdef IMGUI_IMPL_OPENGL_MAY_HAVE_BIND_SAMPLER
     if (bd->GlVersion >= 330)
         glBindSampler(0, last_sampler);
@@ -553,19 +566,32 @@ bool ImGui_ImplOpenGL3_CreateFontsTexture()
     GLint last_texture;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
     glGenTextures(1, &bd->FontTexture);
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+    glBindTexture(GL_TEXTURE_2D_ARRAY, bd->FontTexture);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#else
     glBindTexture(GL_TEXTURE_2D, bd->FontTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#endif
 #ifdef GL_UNPACK_ROW_LENGTH // Not on WebGL/ES
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, width, height, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
+#endif
     // Store our identifier
     io.Fonts->SetTexID((ImTextureID)(intptr_t)bd->FontTexture);
 
     // Restore state
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+    glBindTexture(GL_TEXTURE_2D_ARRAY, last_texture);
+#else
     glBindTexture(GL_TEXTURE_2D, last_texture);
+#endif
 
     return true;
 }
@@ -698,7 +724,7 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
         "#ifdef GL_ES\n"
         "    precision mediump float;\n"
         "#endif\n"
-        "uniform sampler2D Texture;\n"
+        "uniform sampler2D Texture;\n" // TODO: Why is version 120 here? Array Texture is since OpenGL 3.0, GLSL version 130. Version 120 cannot support it.
         "varying vec2 Frag_UV;\n"
         "varying vec4 Frag_Color;\n"
         "void main()\n"
@@ -707,34 +733,61 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
         "}\n";
 
     const GLchar* fragment_shader_glsl_130 =
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "uniform sampler2DArray Texture;\n"
+#else
         "uniform sampler2D Texture;\n"
+#endif
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
         "out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "    vec4 Tex_Color = texture(Texture, vec3(Frag_UV.st, 0.0));\n"
+#else
+        "    vec4 Tex_Color = texture(Texture, Frag_UV.st);\n"
+#endif
+        "    Out_Color = Frag_Color * Tex_Color;\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_300_es =
         "precision mediump float;\n"
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "uniform sampler2DArray Texture;\n"
+#else
         "uniform sampler2D Texture;\n"
+#endif
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
         "layout (location = 0) out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "    vec4 Tex_Color = texture(Texture, vec3(Frag_UV.st, 0.0));\n"
+#else
+        "    vec4 Tex_Color = texture(Texture, Frag_UV.st);\n"
+#endif
+        "    Out_Color = Frag_Color * Tex_Color;\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_410_core =
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "uniform sampler2DArray Texture;\n"
+#else
         "uniform sampler2D Texture;\n"
+#endif
         "layout (location = 0) out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+#if IMGUI_IMPL_OPENGL_USE_TEXTURE_2D_ARRAY
+        "    vec4 Tex_Color = texture(Texture, vec3(Frag_UV.st, 0.0));\n"
+#else
+        "    vec4 Tex_Color = texture(Texture, Frag_UV.st);\n"
+#endif
+        "    Out_Color = Frag_Color * Tex_Color;\n"
         "}\n";
 
     // Select shaders matching our GLSL versions

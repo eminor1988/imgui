@@ -217,6 +217,12 @@ GLAPI void APIENTRY glDeleteTextures (GLsizei n, const GLuint *textures);
 GLAPI void APIENTRY glGenTextures (GLsizei n, GLuint *textures);
 #endif
 #endif /* GL_VERSION_1_1 */
+#ifndef GL_VERSION_1_2
+typedef void (APIENTRYP PFNGLTEXIMAGE3DPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels);
+#ifdef GL_GLEXT_PROTOTYPES
+GLAPI void APIENTRY glTexImage3D (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels);
+#endif
+#endif /* GL_VERSION_1_2 */
 #ifndef GL_VERSION_1_3
 #define GL_TEXTURE0                       0x84C0
 #define GL_ACTIVE_TEXTURE                 0x84E0
@@ -322,6 +328,7 @@ typedef khronos_uint16_t GLhalf;
 #define GL_MAJOR_VERSION                  0x821B
 #define GL_MINOR_VERSION                  0x821C
 #define GL_NUM_EXTENSIONS                 0x821D
+#define GL_TEXTURE_2D_ARRAY               0x8C1A
 #define GL_FRAMEBUFFER_SRGB               0x8DB9
 #define GL_VERTEX_ARRAY_BINDING           0x85B5
 typedef void (APIENTRYP PFNGLGETBOOLEANI_VPROC) (GLenum target, GLuint index, GLboolean *data);
@@ -437,7 +444,7 @@ GL3W_API GL3WglProc imgl3wGetProcAddress(const char *proc);
 
 /* gl3w internal state */
 union GL3WProcs {
-    GL3WglProc ptr[54];
+    GL3WglProc ptr[55];
     struct {
         PFNGLACTIVETEXTUREPROC           ActiveTexture;
         PFNGLATTACHSHADERPROC            AttachShader;
@@ -487,6 +494,7 @@ union GL3WProcs {
         PFNGLSCISSORPROC                 Scissor;
         PFNGLSHADERSOURCEPROC            ShaderSource;
         PFNGLTEXIMAGE2DPROC              TexImage2D;
+        PFNGLTEXIMAGE3DPROC              TexImage3D;
         PFNGLTEXPARAMETERIPROC           TexParameteri;
         PFNGLUNIFORM1IPROC               Uniform1i;
         PFNGLUNIFORMMATRIX4FVPROC        UniformMatrix4fv;
@@ -547,6 +555,7 @@ GL3W_API extern union GL3WProcs imgl3wProcs;
 #define glScissor                        imgl3wProcs.gl.Scissor
 #define glShaderSource                   imgl3wProcs.gl.ShaderSource
 #define glTexImage2D                     imgl3wProcs.gl.TexImage2D
+#define glTexImage3D                     imgl3wProcs.gl.TexImage3D
 #define glTexParameteri                  imgl3wProcs.gl.TexParameteri
 #define glUniform1i                      imgl3wProcs.gl.Uniform1i
 #define glUniformMatrix4fv               imgl3wProcs.gl.UniformMatrix4fv
@@ -734,6 +743,7 @@ static const char *proc_names[] = {
     "glScissor",
     "glShaderSource",
     "glTexImage2D",
+    "glTexImage3D",
     "glTexParameteri",
     "glUniform1i",
     "glUniformMatrix4fv",
